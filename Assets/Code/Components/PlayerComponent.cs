@@ -9,6 +9,7 @@ public class PlayerComponent : MonoBehaviour
     public int Deaths;
     public float GhostFormStart;
     public float TitanFormStart;
+    public int TitanAttackCount;
 
     public bool IsGhostFormOver(float duration) => Form == EForms.GHOST && duration < Time.time - GhostFormStart;
     public bool IsTitanFormOver(float duration) => Form == EForms.TITAN && duration < Time.time - TitanFormStart;

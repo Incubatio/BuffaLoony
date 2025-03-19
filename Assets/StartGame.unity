@@ -1204,6 +1204,13 @@ MonoBehaviour:
   PlayerSpeed: 8
   OrbitSpeed: 140
   OrbitRadius: 1.6
+  GhostFormDuration: 3
+  TitanFormDuration: 5
+  TitanOrbRequirement: 6
+  TitanAttacksPerSecond: 2
+  TitanProjectileNumber: 12
+  TitanProjectileSpeed: 30
+  MaxOrbDistance: 30
   PlayerPrefab: {fileID: 2291631422504905397, guid: 235d3291f89fea34193b8b8529ff4982, type: 3}
   OrbPrefab: {fileID: 410446218528763815, guid: 351bcd2236b2dd642bf378867c317e8f, type: 3}
   MoveLeft: {fileID: -4548981279644140616, guid: 052faaac586de48259a63d0c4782560b, type: 3}

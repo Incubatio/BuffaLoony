@@ -1,9 +1,12 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Serialization;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
+using Random = UnityEngine.Random;
 
 public class MainMono : MonoBehaviour
 {
@@ -16,6 +19,13 @@ public class MainMono : MonoBehaviour
     public float OrbitRadius = 1.6f;
     public float GhostFormDuration = 3f;
     public float TitanFormDuration = 5f;
+    public float TitanOrbRequirement = 6f;
+    public int TitanAttacksPerSecond = 2;
+    public int TitanProjectileNumber = 12;
+    public float TitanProjectileSpeed = 30f;
+    
+    public float MaxOrbDistance = 20f;
+
     
     [Header("Assets")]
     public GameObject PlayerPrefab;
@@ -34,6 +44,7 @@ public class MainMono : MonoBehaviour
     private VisualElement _RootUI;
     
     private List<(int attackerIndex, int victimIndex)> _Collisions; 
+    private List<GameObject> _OrbsToCleanup;
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Awake()
@@ -48,6 +59,7 @@ public class MainMono : MonoBehaviour
         _FreeOrbs = new Stack<GameObject>();
         _OrbsInUse = new HashSet<GameObject>();
         _Collisions = new List<(int playerIndex1, int playerIndex2)>();
+        _OrbsToCleanup = new List<GameObject>();
         
         for (int i = 0; i < ORB_POOL_SIZE; i++)
         {
@@ -60,6 +72,8 @@ public class MainMono : MonoBehaviour
         _LocalPlayer = _Players.First();
         _RootUI.Q<Button>(UIHelper.REVIVE_BTN).style.display = DisplayStyle.None;
         _RootUI.Q<Button>(UIHelper.SPAWN_BTN).clicked += CreateCharacter;
+        _RootUI.Q<Button>(UIHelper.TITAN_BTN).clicked += SwitchToTitanCheat;
+        _RootUI.Q<Button>(UIHelper.GHOST_BTN).clicked += SwitchToGhostCheat;
     }
 
     // Update is called once per frame
@@ -75,6 +89,39 @@ public class MainMono : MonoBehaviour
             
             if (playerComponent.IsTitanFormOver(TitanFormDuration))
                 MainHelper.SwitchForm(player, EForms.WARRIOR);
+            
+            if (playerComponent.Orbs.Count >= TitanOrbRequirement) // check for orb number for potential ascension
+                MainHelper.SwitchForm(player, EForms.TITAN);
+            
+            if (playerComponent.Form == EForms.TITAN) // Check attack timer and spawn hell
+            {
+                var attackCount = (Time.time - playerComponent.TitanFormStart) * TitanAttacksPerSecond;
+                if (playerComponent.TitanAttackCount < attackCount)
+                {
+                    playerComponent.TitanAttackCount++;
+                    Debug.Log("stack size:" + _FreeOrbs.Count);
+                    Debug.Log("titan attacking, current count:" + playerComponent.TitanAttackCount);
+                    var projectiles = new List<GameObject>();
+                    for (var j = 0; j < TitanProjectileNumber; j++)
+                    {
+                        var projectile = _FreeOrbs.Pop();
+                        projectiles.Add(projectile);
+                        _OrbsInUse.Add(projectile);
+                    }
+
+                    var playerPosition = player.transform.position;
+                    var playerColor = player.GetComponent<Renderer>().material.color;
+                    MainHelper.PlaceOrbs(projectiles, playerPosition, OrbitSpeed, OrbitRadius);
+                    foreach (var projectile in projectiles)
+                    {
+                        var orbComponent = projectile.GetComponent<OrbComponent>();
+                        orbComponent.Direction = (projectile.transform.position - playerPosition).normalized;
+                        orbComponent.PlayerIndex = playerIndex;
+                        projectile.GetComponent<Renderer>().material.color = playerColor;
+                    }
+                }
+            }
+
         }
         
         // 2. Input Management
@@ -106,7 +153,15 @@ public class MainMono : MonoBehaviour
             }
 
             var playerComponent = player.GetComponent<PlayerComponent>();
-            MainHelper.AnimateOrbs(playerComponent.Orbs, playerPosition, OrbitSpeed, OrbitRadius);
+            if (playerComponent.Form == EForms.TITAN)
+                playerPosition.y = player.GetComponent<Renderer>().bounds.size.y;
+            MainHelper.PlaceOrbs(playerComponent.Orbs, playerPosition, OrbitSpeed, OrbitRadius);
+        }
+        
+        foreach (var projectile in _OrbsInUse)
+        {
+            var orbComponent = projectile.GetComponent<OrbComponent>();
+            projectile.transform.Translate(orbComponent.Direction * TitanProjectileSpeed * Time.deltaTime); // move projectile
         }
         
         // 4. Collision Detection
@@ -136,6 +191,7 @@ public class MainMono : MonoBehaviour
             }
         }
 
+        // 5. Apply Damage
         foreach ((int attackerIndex, int victimIndex) in _Collisions)
         {
             //Transformation to a ghost (invincibility for 3 seconds), also avoid re-triggering collision instantly
@@ -148,7 +204,10 @@ public class MainMono : MonoBehaviour
             var lastOrbIndex = victimComponent.Orbs.Count - 1;
             var orbitingObject = victimComponent.Orbs[lastOrbIndex];
             victimComponent.Orbs.RemoveAt(lastOrbIndex); // losing an orbitObject
-            attackerComponent.Orbs.Add(orbitingObject); // Add a new orbitObject
+            if( attackerComponent.Form == EForms.TITAN )
+                _OrbsToCleanup.Add(orbitingObject);
+            else
+                attackerComponent.Orbs.Add(orbitingObject); // Add a new orbitObject
             MainHelper.SetColor(attacker, default);
 
             // Death
@@ -166,7 +225,22 @@ public class MainMono : MonoBehaviour
             }
         }
         _Collisions.Clear();
+        
+        // 6. Cleanup projectile going to far
+        
+        foreach (var orb in _OrbsInUse)
+        {
+            var pos = orb.transform.position;
+            if (MaxOrbDistance < Math.Abs(pos.x) + Math.Abs(pos.y) + Math.Abs(pos.z))
+                _OrbsToCleanup.Add(orb);
+        }
 
+        foreach (var orb in _OrbsToCleanup)
+        {
+            _OrbsInUse.Remove(orb);
+            MainHelper.FreeOrb(orb, _FreeOrbs);
+        }
+        _OrbsToCleanup.Clear();
     }
 
     public void CreateCharacter()
@@ -214,5 +288,8 @@ public class MainMono : MonoBehaviour
         var playerComponent = _LocalPlayer.GetComponent<PlayerComponent>();
         _InitOrbs(0);
     }
+
+    public void SwitchToTitanCheat() => MainHelper.SwitchForm(_LocalPlayer, EForms.TITAN);
+    public void SwitchToGhostCheat() => MainHelper.SwitchForm(_LocalPlayer, EForms.GHOST);
 
 }

@@ -2,5 +2,7 @@
     <engine:VisualElement name="VisualElement" style="flex-grow: 1; align-items: auto; justify-content: flex-end; align-self: auto;">
         <engine:Button text="Spawn" name="spawn-btn" style="font-size: 24px;" />
         <engine:Button text="Revive" name="revive-btn" style="font-size: 24px;" />
+        <engine:Button text="Titan" name="titan-btn" style="font-size: 24px;" />
+        <engine:Button text="Ghost" name="ghost-btn" style="font-size: 24px;" />
     </engine:VisualElement>
 </engine:UXML>

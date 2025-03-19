@@ -24,10 +24,9 @@ public static class MainHelper
     public static void FreeOrb(GameObject pOrb, Stack<GameObject> pFreeOrbs)
     {
         pOrb.transform.position = new Vector3(-1000, -1000, -1000);
-        var projectileComponent = pOrb.GetComponent<OrbComponent>();
-        projectileComponent.PlayerIndex = -1;
+        var orbComponent = pOrb.GetComponent<OrbComponent>();
+        orbComponent.PlayerIndex = -1;
         pFreeOrbs.Push(pOrb);
-
     }
 
     public static void SetColor(GameObject pPlayer, Color pColor = default)
@@ -42,7 +41,7 @@ public static class MainHelper
             orb.GetComponent<Renderer>().material.color = pColor;
     }
 
-    public static void AnimateOrbs(List<GameObject> pOrbitObjects, Vector3 pCenterPosition, float pOrbitSpeed, float pOrbitRadius)
+    public static void PlaceOrbs(List<GameObject> pOrbitObjects, Vector3 pCenterPosition, float pOrbitSpeed, float pOrbitRadius)
     {
         float angleOffset = 360f / pOrbitObjects.Count;
 
