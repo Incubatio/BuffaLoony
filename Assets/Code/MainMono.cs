@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -19,7 +20,7 @@ public class MainMono : MonoBehaviour
     public float OrbitRadius = 1.6f;
     public float GhostFormDuration = 3f;
     public float TitanFormDuration = 5f;
-    public float TitanOrbRequirement = 6f; // this also used to indicate maxLife
+    public int TitanOrbRequirement = 6; // this also used to indicate maxLife
     public int TitanAttacksPerSecond = 2;
     public int TitanProjectileNumber = 12;
     public float TitanProjectileSpeed = 30f;
@@ -98,13 +99,19 @@ public class MainMono : MonoBehaviour
             var playerComponent = player.GetComponent<PlayerComponent>();
             if (playerComponent.IsGhostFormOver(GhostFormDuration))
                 MainHelper.SwitchForm(player, EForms.WARRIOR);
-            
+
             if (playerComponent.IsTitanFormOver(TitanFormDuration))
+            {
                 MainHelper.SwitchForm(player, EForms.WARRIOR);
-            
+                UpdateOrbNumber(0, StartingOrbNumber);
+            }
+
             if (playerComponent.Orbs.Count >= TitanOrbRequirement) // check for orb number for potential ascension
+            {
                 MainHelper.SwitchForm(player, EForms.TITAN);
-            
+                UpdateOrbNumber(0, TitanOrbRequirement);
+            }
+
             if (playerComponent.Form == EForms.TITAN) // Check attack timer and spawn hell
             {
                 var attackCount = (Time.time - playerComponent.TitanFormStart) * TitanAttacksPerSecond;
@@ -218,10 +225,11 @@ public class MainMono : MonoBehaviour
         {
             //Transformation to a ghost (invincibility for 3 seconds), also avoid re-triggering collision instantly
             
-            var attacker = _Players[attackerIndex];
             var victim = _Players[victimIndex];
-            var attackerComponent = attacker.GetComponent<PlayerComponent>();
             var victimComponent = victim.GetComponent<PlayerComponent>();
+            if (victimComponent.Form == EForms.GHOST ) continue;
+            var attacker = _Players[attackerIndex];
+            var attackerComponent = attacker.GetComponent<PlayerComponent>();
             var lastOrbIndex = victimComponent.Orbs.Count - 1;
             if (lastOrbIndex < 0) continue;
             var orbitingObject = victimComponent.Orbs[lastOrbIndex];
@@ -229,10 +237,9 @@ public class MainMono : MonoBehaviour
             if( attackerComponent.Form == EForms.TITAN )
                 _OrbsToCleanup.Add(orbitingObject);
             else
-            {
-                MainHelper.SwitchForm(_Players[victimIndex], EForms.GHOST);
                 attackerComponent.Orbs.Add(orbitingObject); // Add a new orbitObject
-            }
+            
+            MainHelper.SwitchForm(_Players[victimIndex], EForms.GHOST);
 
             MainHelper.SetColor(attacker, default);
 
@@ -289,7 +296,7 @@ public class MainMono : MonoBehaviour
         var healthBar = Instantiate(ProgressBarPrefab, _CanvasParent);
         _HealthBars.Add(healthBar);
 
-        _InitOrbs(playerIndice);
+        UpdateOrbNumber(playerIndice, StartingOrbNumber);
         
         var color = isLocalPlayer
             ? new Color(0.2f, 0.2f, 0.8f, 1f)
@@ -297,15 +304,30 @@ public class MainMono : MonoBehaviour
         MainHelper.SetColor(player, color);
     }
 
-    private void _InitOrbs(int pPlayerIndice)
+    private void UpdateOrbNumber(int pPlayerIndice, int pNumber)
     {
-        for (var i = 0; i < StartingOrbNumber; i++)
+        var playerComponent = _Players[pPlayerIndice].GetComponent<PlayerComponent>();
+        int orbCount = playerComponent.Orbs.Count;
+        if (orbCount > pNumber)
         {
-            var orb = _FreeOrbs.Pop();
-            var orbComponent = orb.GetComponent<OrbComponent>();
-            orbComponent.PlayerIndex = pPlayerIndice;
-            _OrbsInUse.Add(orb);
-            _Players[pPlayerIndice].GetComponent<PlayerComponent>().Orbs.Add(orb);
+            for (int i = orbCount - 1; i > pNumber; i--)
+            {
+                var orb = playerComponent.Orbs[i];
+                playerComponent.Orbs.RemoveAt(i);
+                _OrbsInUse.Remove(orb);
+                _FreeOrbs.Push(orb);
+            }
+        }
+        else
+        {
+            for (int i = orbCount; i < pNumber; i++)
+            {
+                var orb = _FreeOrbs.Pop();
+                var orbComponent = orb.GetComponent<OrbComponent>();
+                orbComponent.PlayerIndex = pPlayerIndice;
+                _OrbsInUse.Add(orb);
+                playerComponent.Orbs.Add(orb);
+            }
         }
     }
 
@@ -317,8 +339,9 @@ public class MainMono : MonoBehaviour
         _AlivePlayers.Add(0);
 
         var renderer = _LocalPlayer.GetComponent<Renderer>();
-        var playerComponent = _LocalPlayer.GetComponent<PlayerComponent>();
-        _InitOrbs(0);
+        UpdateOrbNumber(0, StartingOrbNumber);
+        MainHelper.SwitchForm(_LocalPlayer, EForms.WARRIOR);
+        MainHelper.SetColor(_LocalPlayer, renderer.material.color);
     }
     
     private void _UpdateHealthBar(int pIndex, float pLifes)
