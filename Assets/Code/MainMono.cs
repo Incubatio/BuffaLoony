@@ -1,5 +1,9 @@
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
+using UnityEngine.UIElements;
 
 public class MainMono : MonoBehaviour
 {
@@ -9,13 +13,31 @@ public class MainMono : MonoBehaviour
     
     public InputActionReference MoveLeft, MoveRight, MoveForward, MoveBackward;
 
-    private GameObject _LocalPlayer;
+    private List<GameObject> _Players;
+    private GameObject _LocalPlayer => _Players[0];
     private Vector3 _MovementInput;
-    
+    private Transform[] _Waypoints;
+    private Transform _ActorsParent;
+    private VisualElement _RootUI;
+
     // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    void Awake()
     {
-        _LocalPlayer = Instantiate(PlayerPrefab);
+        var currentScene = SceneManager.GetActiveScene();
+        var gameObjects = currentScene.GetRootGameObjects();
+        _RootUI = gameObjects.First(go => go.name == SceneHelper.UI_DOCUMENT).GetComponent<UIDocument>().rootVisualElement;
+        _Waypoints = gameObjects.First(go => go.name == SceneHelper.WAYPOINTS).GetComponentsInChildren<Transform>();
+        _Players = new List<GameObject>();
+        
+        var actorsParent = gameObjects.First(go => go.name == SceneHelper.ACTORS).transform;
+        _Players.Add(MainHelper.CreatePlayer(_Players.Count, PlayerPrefab, actorsParent, _Waypoints));
+        _RootUI.Q<Button>(UIHelper.SPAWN_BTN).clicked += CreateAI;
+    }
+
+    void CreateAI()
+    {
+        var aiPlayer = MainHelper.CreateAI(_Players.Count, PlayerPrefab, _ActorsParent, _Waypoints);
+        _Players.Add(aiPlayer);
     }
 
     // Update is called once per frame
@@ -32,13 +54,32 @@ public class MainMono : MonoBehaviour
         if (_MovementInput.magnitude > 1f)
             _MovementInput.Normalize();   
         
-        _LocalPlayer.transform.Translate(_MovementInput * PlayerSpeed * Time.deltaTime);
         
         // 3. Process Movement
+        _LocalPlayer.transform.Translate(_MovementInput * PlayerSpeed * Time.deltaTime);
+        
+        foreach (var player in _Players)
+        { 
+            var playerPosition = player.transform.position;
+            if (player.TryGetComponent(out AIComponent aiComponent))
+            {
+                var targetPosition = _Waypoints[aiComponent.WaypointIndice].position;
+                Vector3 direction = (targetPosition - playerPosition).normalized;
+
+                player.transform.Translate(direction * PlayerSpeed * Time.deltaTime); // move players
+
+                if (Vector3.Distance(playerPosition, targetPosition) < 0.1f) // check if AI reached waypoint
+                    aiComponent.WaypointIndice = Random.Range(0, _Waypoints.Length);
+            }
+        }
+
+        
+        
         // 3. Collision Detection
         
         //
 
     }
+
 
 }
