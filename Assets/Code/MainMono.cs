@@ -23,7 +23,8 @@ public class MainMono : MonoBehaviour
 
     private Stack<GameObject> _FreeOrbs;
     private HashSet<GameObject> _OrbsInUse;
-    private HashSet<GameObject> _Players;
+    private List<GameObject> _Players;
+    private List<int> _AlivePlayers;
     private GameObject _LocalPlayer;
     private Vector3 _MovementInput;
     private Transform[] _Waypoints;
@@ -38,7 +39,8 @@ public class MainMono : MonoBehaviour
         _RootUI = gameObjects.First(go => go.name == SceneHelper.UI_DOCUMENT).GetComponent<UIDocument>().rootVisualElement;
         _Waypoints = gameObjects.First(go => go.name == SceneHelper.WAYPOINTS).GetComponentsInChildren<Transform>();
         _ActorsParent = gameObjects.First(go => go.name == SceneHelper.ACTORS).transform;
-        _Players = new HashSet<GameObject>();
+        _Players = new List<GameObject>();
+        _AlivePlayers = new List<int>();
         _FreeOrbs = new Stack<GameObject>();
         _OrbsInUse = new HashSet<GameObject>();
         
@@ -90,13 +92,34 @@ public class MainMono : MonoBehaviour
             MainHelper.AnimateOrbs(playerComponent.Orbs, playerPosition, OrbitSpeed, OrbitRadius);
         }
         
+        // 4. Collision Detection
+        foreach (var orb in _OrbsInUse)
+        {
+            var orbComponent = orb.GetComponent<OrbComponent>();
+            foreach (int playerIndex in _AlivePlayers)
+            {
+                if (orbComponent.PlayerIndex == playerIndex) continue;
+
+                var attacker = _Players[orbComponent.PlayerIndex];
+                var attackerComponent = attacker.GetComponent<PlayerComponent>();
+                //if (attackerComponent.Form == EForms.GHOST ) continue;
+
+                var victim = _Players[playerIndex];
+                var victimComponent = victim.GetComponent<PlayerComponent>();
+                //if (victimComponent.Form == EForms.GHOST ) continue;
+
+                var pos1 = victim.transform.position;
+                var pos2 = orb.transform.position;
+                if (MainHelper.CheckCircleCollision(new Vector2(pos1.x, pos1.z), victim.transform.localScale.x / 2, 
+                        new Vector2(pos2.x, pos2.z), orb.transform.localScale.x / 2))
+                {
+                    Debug.Log("Collision from " + orbComponent.PlayerIndex + " to " + playerIndex);
+                }
+            }
+        }
 
 
-        
-        
-        // 3. Collision Detection
-        
-        //
+            //
 
     }
 
@@ -106,6 +129,7 @@ public class MainMono : MonoBehaviour
         var playerIndice = _Players.Count;
         var isLocalPlayer = playerIndice == 0;
         _Players.Add(player);
+        _AlivePlayers.Add(playerIndice);
         
         if(!isLocalPlayer)
             MainHelper.AddAI(player, _Waypoints);

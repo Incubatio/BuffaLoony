@@ -56,6 +56,10 @@ public static class MainHelper
         }
     }
 
-
+    public static bool CheckCircleCollision(Vector2 pPosition1, float pRadius1, Vector2 pPosition2, float pRadius2)
+    {
+        float distance = Vector2.Distance(pPosition1, pPosition2);
+        return distance < pRadius1 + pRadius2;
+    }
 
 }
