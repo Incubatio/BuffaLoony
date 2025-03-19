@@ -19,7 +19,7 @@ public class MainMono : MonoBehaviour
     public float OrbitRadius = 1.6f;
     public float GhostFormDuration = 3f;
     public float TitanFormDuration = 5f;
-    public float TitanOrbRequirement = 6f;
+    public float TitanOrbRequirement = 6f; // this also used to indicate maxLife
     public int TitanAttacksPerSecond = 2;
     public int TitanProjectileNumber = 12;
     public float TitanProjectileSpeed = 30f;
@@ -30,6 +30,7 @@ public class MainMono : MonoBehaviour
     [Header("Assets")]
     public GameObject PlayerPrefab;
     public GameObject OrbPrefab;
+    public GameObject ProgressBarPrefab;
     
     public InputActionReference MoveLeft, MoveRight, MoveForward, MoveBackward;
 
@@ -38,13 +39,20 @@ public class MainMono : MonoBehaviour
     private List<GameObject> _Players;
     private List<int> _AlivePlayers;
     private GameObject _LocalPlayer;
+    private List<GameObject> _HealthBars;
+    private float _HealthBarOffsetY;
     private Vector3 _MovementInput;
     private Transform[] _Waypoints;
     private Transform _ActorsParent;
+    private Transform _CanvasParent;
     private VisualElement _RootUI;
     
     private List<(int attackerIndex, int victimIndex)> _Collisions; 
     private List<GameObject> _OrbsToCleanup;
+    private List<GameObject> _Projectiles;
+    private Vector2 _FastPos1;
+    private Vector2 _FastPos2;
+    
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Awake()
@@ -54,12 +62,15 @@ public class MainMono : MonoBehaviour
         _RootUI = gameObjects.First(go => go.name == SceneHelper.UI_DOCUMENT).GetComponent<UIDocument>().rootVisualElement;
         _Waypoints = gameObjects.First(go => go.name == SceneHelper.WAYPOINTS).GetComponentsInChildren<Transform>();
         _ActorsParent = gameObjects.First(go => go.name == SceneHelper.ACTORS).transform;
+        _CanvasParent = gameObjects.First(go => go.name == SceneHelper.CANVAS).transform;
         _Players = new List<GameObject>();
         _AlivePlayers = new List<int>();
+        _HealthBars = new List<GameObject>();
         _FreeOrbs = new Stack<GameObject>();
         _OrbsInUse = new HashSet<GameObject>();
         _Collisions = new List<(int playerIndex1, int playerIndex2)>();
         _OrbsToCleanup = new List<GameObject>();
+        _Projectiles = new List<GameObject>();
         
         for (int i = 0; i < ORB_POOL_SIZE; i++)
         {
@@ -70,6 +81,7 @@ public class MainMono : MonoBehaviour
         
         CreateCharacter();
         _LocalPlayer = _Players.First();
+        _HealthBarOffsetY = _LocalPlayer.GetComponent<Renderer>().bounds.size.y + 0.8f;
         _RootUI.Q<Button>(UIHelper.REVIVE_BTN).style.display = DisplayStyle.None;
         _RootUI.Q<Button>(UIHelper.SPAWN_BTN).clicked += CreateCharacter;
         _RootUI.Q<Button>(UIHelper.TITAN_BTN).clicked += SwitchToTitanCheat;
@@ -101,24 +113,24 @@ public class MainMono : MonoBehaviour
                     playerComponent.TitanAttackCount++;
                     Debug.Log("stack size:" + _FreeOrbs.Count);
                     Debug.Log("titan attacking, current count:" + playerComponent.TitanAttackCount);
-                    var projectiles = new List<GameObject>();
                     for (var j = 0; j < TitanProjectileNumber; j++)
                     {
                         var projectile = _FreeOrbs.Pop();
-                        projectiles.Add(projectile);
+                        _Projectiles.Add(projectile);
                         _OrbsInUse.Add(projectile);
                     }
 
                     var playerPosition = player.transform.position;
                     var playerColor = player.GetComponent<Renderer>().material.color;
-                    MainHelper.PlaceOrbs(projectiles, playerPosition, OrbitSpeed, OrbitRadius);
-                    foreach (var projectile in projectiles)
+                    MainHelper.PlaceOrbs(_Projectiles, playerPosition, OrbitSpeed, OrbitRadius);
+                    foreach (var projectile in _Projectiles)
                     {
                         var orbComponent = projectile.GetComponent<OrbComponent>();
                         orbComponent.Direction = (projectile.transform.position - playerPosition).normalized;
                         orbComponent.PlayerIndex = playerIndex;
                         projectile.GetComponent<Renderer>().material.color = playerColor;
                     }
+                    _Projectiles.Clear();
                 }
             }
 
@@ -155,15 +167,23 @@ public class MainMono : MonoBehaviour
             var playerComponent = player.GetComponent<PlayerComponent>();
             if (playerComponent.Form == EForms.TITAN)
                 playerPosition.y = player.GetComponent<Renderer>().bounds.size.y;
-            MainHelper.PlaceOrbs(playerComponent.Orbs, playerPosition, OrbitSpeed, OrbitRadius);
+            MainHelper.PlaceOrbs(playerComponent.Orbs, playerPosition, OrbitSpeed, OrbitRadius); // orbit orbs around player
         }
         
-        foreach (var projectile in _OrbsInUse)
+        foreach (var projectile in _OrbsInUse) // move projectiles
         {
             var orbComponent = projectile.GetComponent<OrbComponent>();
             projectile.transform.Translate(orbComponent.Direction * TitanProjectileSpeed * Time.deltaTime); // move projectile
         }
-        
+
+        for (int i = 0, l = _Players.Count; i < l; i++)
+        {
+            var pos = _Players[i].transform.position;
+            pos.y = _HealthBarOffsetY;
+            _HealthBars[i].transform.position = pos; // move healthBar
+        }
+
+
         // 4. Collision Detection
         foreach (var orb in _OrbsInUse)
         {
@@ -182,8 +202,10 @@ public class MainMono : MonoBehaviour
 
                 var pos1 = victim.transform.position;
                 var pos2 = orb.transform.position;
-                if (MainHelper.CheckCircleCollision(new Vector2(pos1.x, pos1.z), victim.transform.localScale.x / 2, 
-                        new Vector2(pos2.x, pos2.z), orb.transform.localScale.x / 2))
+                _FastPos1.x = pos1.x; _FastPos1.y = pos1.z;
+                _FastPos2.x = pos2.x; _FastPos2.y = pos2.z;
+                if (MainHelper.CheckCircleCollision(_FastPos1, victim.transform.localScale.x / 2, 
+                        _FastPos2, orb.transform.localScale.x / 2))
                 {
                     Debug.Log("Collision from " + orbComponent.PlayerIndex + " to " + playerIndex);
                     _Collisions.Add((orbComponent.PlayerIndex, playerIndex));
@@ -195,19 +217,23 @@ public class MainMono : MonoBehaviour
         foreach ((int attackerIndex, int victimIndex) in _Collisions)
         {
             //Transformation to a ghost (invincibility for 3 seconds), also avoid re-triggering collision instantly
-            MainHelper.SwitchForm(_Players[victimIndex], EForms.GHOST);
             
             var attacker = _Players[attackerIndex];
             var victim = _Players[victimIndex];
             var attackerComponent = attacker.GetComponent<PlayerComponent>();
             var victimComponent = victim.GetComponent<PlayerComponent>();
             var lastOrbIndex = victimComponent.Orbs.Count - 1;
+            if (lastOrbIndex < 0) continue;
             var orbitingObject = victimComponent.Orbs[lastOrbIndex];
             victimComponent.Orbs.RemoveAt(lastOrbIndex); // losing an orbitObject
             if( attackerComponent.Form == EForms.TITAN )
                 _OrbsToCleanup.Add(orbitingObject);
             else
+            {
+                MainHelper.SwitchForm(_Players[victimIndex], EForms.GHOST);
                 attackerComponent.Orbs.Add(orbitingObject); // Add a new orbitObject
+            }
+
             MainHelper.SetColor(attacker, default);
 
             // Death
@@ -227,7 +253,6 @@ public class MainMono : MonoBehaviour
         _Collisions.Clear();
         
         // 6. Cleanup projectile going to far
-        
         foreach (var orb in _OrbsInUse)
         {
             var pos = orb.transform.position;
@@ -241,6 +266,10 @@ public class MainMono : MonoBehaviour
             MainHelper.FreeOrb(orb, _FreeOrbs);
         }
         _OrbsToCleanup.Clear();
+        
+        // 7. Update Huds / UIs
+        foreach (int playerIndex in _AlivePlayers)
+            _UpdateHealthBar(playerIndex, _Players[playerIndex].GetComponent<PlayerComponent>().Orbs.Count);
     }
 
     public void CreateCharacter()
@@ -256,6 +285,9 @@ public class MainMono : MonoBehaviour
         
         var playerComponent = player.GetComponent<PlayerComponent>();
         playerComponent.Orbs = new List<GameObject>();
+
+        var healthBar = Instantiate(ProgressBarPrefab, _CanvasParent);
+        _HealthBars.Add(healthBar);
 
         _InitOrbs(playerIndice);
         
@@ -287,6 +319,16 @@ public class MainMono : MonoBehaviour
         var renderer = _LocalPlayer.GetComponent<Renderer>();
         var playerComponent = _LocalPlayer.GetComponent<PlayerComponent>();
         _InitOrbs(0);
+    }
+    
+    private void _UpdateHealthBar(int pIndex, float pLifes)
+    {
+        var healthBar = _HealthBars[pIndex];
+        var bg = healthBar.transform.GetChild(0).GetComponent<RectTransform>();
+        var fg = healthBar.transform.GetChild(1).GetComponent<RectTransform>();
+        var maxWidth = bg.sizeDelta.x;
+        var percent = pLifes / TitanOrbRequirement;
+        fg.sizeDelta = new Vector2(maxWidth * percent, fg.sizeDelta.y);
     }
 
     public void SwitchToTitanCheat() => MainHelper.SwitchForm(_LocalPlayer, EForms.TITAN);

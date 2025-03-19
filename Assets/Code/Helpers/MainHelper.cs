@@ -82,6 +82,7 @@ public static class MainHelper
             case EForms.TITAN:
                 Debug.Log("Cleaning Titan");
                 playerComponent.TitanFormStart = 0f;
+                playerComponent.TitanAttackCount = 0;
                 pPlayer.transform.localScale /= 2f;
                 break;
         }
