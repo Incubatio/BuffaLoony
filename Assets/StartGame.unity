@@ -1200,8 +1200,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 134b827cf60ff994d99ae0e01e3d3ca9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  PlayerPrefab: {fileID: 2291631422504905397, guid: 235d3291f89fea34193b8b8529ff4982, type: 3}
+  StartingOrbNumber: 2
   PlayerSpeed: 8
+  OrbitSpeed: 140
+  OrbitRadius: 1.6
+  PlayerPrefab: {fileID: 2291631422504905397, guid: 235d3291f89fea34193b8b8529ff4982, type: 3}
+  OrbPrefab: {fileID: 410446218528763815, guid: 351bcd2236b2dd642bf378867c317e8f, type: 3}
   MoveLeft: {fileID: -4548981279644140616, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   MoveRight: {fileID: 5327467525625716334, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   MoveForward: {fileID: -6675521179602209476, guid: 052faaac586de48259a63d0c4782560b, type: 3}
