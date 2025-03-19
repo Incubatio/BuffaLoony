@@ -26,6 +26,7 @@ public static class MainHelper
         pOrb.transform.position = new Vector3(-1000, -1000, -1000);
         var orbComponent = pOrb.GetComponent<OrbComponent>();
         orbComponent.PlayerIndex = -1;
+        orbComponent.Direction = Vector3.zero;
         pFreeOrbs.Push(pOrb);
     }
 

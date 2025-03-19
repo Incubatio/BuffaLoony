@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.Serialization;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -103,13 +101,13 @@ public class MainMono : MonoBehaviour
             if (playerComponent.IsTitanFormOver(TitanFormDuration))
             {
                 MainHelper.SwitchForm(player, EForms.WARRIOR);
-                UpdateOrbNumber(0, StartingOrbNumber);
+                UpdateOrbNumber(playerIndex, StartingOrbNumber);
             }
 
-            if (playerComponent.Orbs.Count >= TitanOrbRequirement) // check for orb number for potential ascension
+            if (playerComponent.Form != EForms.TITAN && playerComponent.Orbs.Count >= TitanOrbRequirement) // check for orb number for potential ascension
             {
                 MainHelper.SwitchForm(player, EForms.TITAN);
-                UpdateOrbNumber(0, TitanOrbRequirement);
+                UpdateOrbNumber(playerIndex, TitanOrbRequirement);
             }
 
             if (playerComponent.Form == EForms.TITAN) // Check attack timer and spawn hell
@@ -166,8 +164,9 @@ public class MainMono : MonoBehaviour
                 Vector3 direction = (targetPosition - playerPosition).normalized;
 
                 player.transform.Translate(direction * PlayerSpeed * Time.deltaTime); // move players
+                playerPosition = player.transform.position;
 
-                if (Vector3.Distance(playerPosition, targetPosition) < 0.1f) // check if AI reached waypoint
+                if (Vector3.Distance(playerPosition, targetPosition) < 0.2f) // check if AI reached waypoint
                     aiComponent.WaypointIndice = Random.Range(0, _Waypoints.Length);
             }
 
@@ -232,16 +231,19 @@ public class MainMono : MonoBehaviour
             var attackerComponent = attacker.GetComponent<PlayerComponent>();
             var lastOrbIndex = victimComponent.Orbs.Count - 1;
             if (lastOrbIndex < 0) continue;
-            var orbitingObject = victimComponent.Orbs[lastOrbIndex];
-            victimComponent.Orbs.RemoveAt(lastOrbIndex); // losing an orbitObject
+            var orb = victimComponent.Orbs[lastOrbIndex];
+            victimComponent.Orbs.RemoveAt(lastOrbIndex); // losing an orb
             if( attackerComponent.Form == EForms.TITAN )
-                _OrbsToCleanup.Add(orbitingObject);
+                _OrbsToCleanup.Add(orb);
             else
-                attackerComponent.Orbs.Add(orbitingObject); // Add a new orbitObject
-            
+            {
+                orb.GetComponent<OrbComponent>().PlayerIndex = attackerIndex;
+                attackerComponent.Orbs.Add(orb); // Add a new orb
+                MainHelper.SetColor(attacker, default);
+            }
+
             MainHelper.SwitchForm(_Players[victimIndex], EForms.GHOST);
 
-            MainHelper.SetColor(attacker, default);
 
             // Death
             if (victimComponent.Orbs.Count == 0)
@@ -310,12 +312,12 @@ public class MainMono : MonoBehaviour
         int orbCount = playerComponent.Orbs.Count;
         if (orbCount > pNumber)
         {
-            for (int i = orbCount - 1; i > pNumber; i--)
+            for (int i = orbCount - 1; i >= pNumber; i--)
             {
                 var orb = playerComponent.Orbs[i];
                 playerComponent.Orbs.RemoveAt(i);
                 _OrbsInUse.Remove(orb);
-                _FreeOrbs.Push(orb);
+                MainHelper.FreeOrb(orb, _FreeOrbs);
             }
         }
         else
@@ -335,7 +337,7 @@ public class MainMono : MonoBehaviour
     {
         var reviveBtn = _RootUI.Q<Button>(UIHelper.REVIVE_BTN);
         reviveBtn.clicked -= _ReviveLocalPlayer;
-        reviveBtn.style.visibility = Visibility.Hidden;
+        reviveBtn.style.display = DisplayStyle.None;
         _AlivePlayers.Add(0);
 
         var renderer = _LocalPlayer.GetComponent<Renderer>();
@@ -354,7 +356,15 @@ public class MainMono : MonoBehaviour
         fg.sizeDelta = new Vector2(maxWidth * percent, fg.sizeDelta.y);
     }
 
-    public void SwitchToTitanCheat() => MainHelper.SwitchForm(_LocalPlayer, EForms.TITAN);
-    public void SwitchToGhostCheat() => MainHelper.SwitchForm(_LocalPlayer, EForms.GHOST);
+    public void SwitchToTitanCheat()
+    {
+        MainHelper.SwitchForm(_LocalPlayer, EForms.TITAN);  
+        UpdateOrbNumber(0, TitanOrbRequirement);
+    } 
+    public void SwitchToGhostCheat() 
+    {
+        MainHelper.SwitchForm(_LocalPlayer, EForms.GHOST);
+        UpdateOrbNumber(0, StartingOrbNumber);
+    } 
 
 }
