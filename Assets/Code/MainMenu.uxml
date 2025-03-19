@@ -1,5 +1,6 @@
 <engine:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:engine="UnityEngine.UIElements" xmlns:editor="UnityEditor.UIElements" noNamespaceSchemaLocation="../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
-    <engine:VisualElement name="VisualElement" style="flex-grow: 1; align-items: auto; justify-content: flex-end;">
-        <engine:Button text="Spawn" name="spawn-btn" />
+    <engine:VisualElement name="VisualElement" style="flex-grow: 1; align-items: auto; justify-content: flex-end; align-self: auto;">
+        <engine:Button text="Spawn" name="spawn-btn" style="font-size: 24px;" />
+        <engine:Button text="Revive" name="revive-btn" style="font-size: 24px;" />
     </engine:VisualElement>
 </engine:UXML>

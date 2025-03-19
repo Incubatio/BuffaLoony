@@ -30,9 +30,13 @@ public static class MainHelper
 
     }
 
-    public static void SetColor(GameObject pPlayer, Color pColor)
+    public static void SetColor(GameObject pPlayer, Color pColor = default)
     {
-        pPlayer.GetComponent<Renderer>().material.color = pColor;
+        if (pColor == default)
+            pColor = pPlayer.GetComponent<Renderer>().material.color;
+        else
+            pPlayer.GetComponent<Renderer>().material.color = pColor;
+        
         var playerComponent = pPlayer.GetComponent<PlayerComponent>();
         foreach (var orb in playerComponent.Orbs)
             orb.GetComponent<Renderer>().material.color = pColor;
@@ -62,4 +66,42 @@ public static class MainHelper
         return distance < pRadius1 + pRadius2;
     }
 
+    public static void SwitchForm(GameObject pPlayer, EForms pForm)
+    {
+        var playerComponent = pPlayer.GetComponent<PlayerComponent>();
+        if (playerComponent.Form == pForm) return;
+        var renderer = pPlayer.GetComponent<Renderer>();
+
+        switch (playerComponent.Form)
+        {
+            case EForms.GHOST:
+                playerComponent.GhostFormStart = 0f;
+                var oldColor = renderer.material.color;
+                MainHelper.SetColor(pPlayer, new Color(oldColor.r, oldColor.g, oldColor.b, 1f));
+                Debug.Log("Cleaning Ghost");
+                break;
+            case EForms.TITAN:
+                Debug.Log("Cleaning Titan");
+                playerComponent.TitanFormStart = 0f;
+                pPlayer.transform.localScale /= 2f;
+                break;
+        }
+
+        switch (pForm)
+        {
+            case EForms.GHOST:
+                playerComponent.GhostFormStart = Time.time;
+                var oldColor = renderer.material.color;
+                MainHelper.SetColor(pPlayer, new Color(oldColor.r, oldColor.g, oldColor.b, .5f));
+                Debug.Log("initiating Ghost");
+                break;
+            case EForms.TITAN:
+                playerComponent.TitanFormStart = Time.time;
+                pPlayer.transform.localScale *= 2f;
+                Debug.Log("initiating Titan");
+                break;
+        }
+        
+        playerComponent.Form = pForm;
+    }
 }
